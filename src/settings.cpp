@@ -437,6 +437,14 @@ json::Value describe_module() {
     d.set("version", module_version());
     d.set("kind", "input");
     d.set("settings", settings_schema());
+    // What the radio can be set to, for FernSDR's suggestions of bands.
+    // HF by direct sampling: a real signal from 0 Hz to half the rate, 0 to
+    // 32.4 MHz at 64.8 Msps and 0 to 64.8 MHz at 129.6 Msps.
+    json::Value tuning = json::Value::object();
+    tuning.set("ranges", json::Value::array().push(json::Value::array().push(0.0).push(64800000.0)));
+    tuning.set("rates", json::Value::array().push(64800000.0).push(129600000.0));
+    tuning.set("signal", "real");
+    d.set("tuning", tuning);
     return d;
 }
 
