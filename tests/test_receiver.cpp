@@ -336,6 +336,39 @@ TEST(apply_changes_only_what_it_carries) {
     CHECK_HAS(fern::json::serialize(rx.settings_json(g)), expected);
 }
 
+TEST(a_refused_gain_change_leaves_the_gain_mode_as_it_was) {
+    fake::Backend usb;
+    fake::Device& dev = usb.add(fake::Spec{});
+    fern::Receiver rx(usb);
+    REQUIRE(!rx.open(request()));
+    REQUIRE(rx.effective().gain.automatic());
+    const size_t step = rx.gain_step();
+    const uint16_t vga = dev.vga;
+
+    // Automatic to manual, refused by the board: AGC must stay in charge.
+    dev.spec.fail_request = rq::set_argument;
+    dev.spec.fail_code = fern::usb_error::timeout;
+    fern::LiveChange manual;
+    manual.gain = fern::GainSetting::manual(-10);
+    CHECK(rx.apply(manual).has_value());
+    CHECK(rx.effective().gain.automatic());
+    CHECK_EQ(rx.gain_step(), step);
+    CHECK_EQ(dev.vga, vga);
+
+    // Manual to automatic, refused: the manual gain stays, and the step the
+    // control would have started from is not taken either.
+    REQUIRE(!rx.apply(manual));
+    const double manual_db = rx.effective().gain.db;
+    dev.spec.fail_request = rq::set_argument;
+    dev.spec.fail_code = fern::usb_error::timeout;
+    fern::LiveChange automatic;
+    automatic.gain = fern::GainSetting{};
+    CHECK(rx.apply(automatic).has_value());
+    CHECK(!rx.effective().gain.automatic());
+    CHECK_EQ(rx.effective().gain.db, manual_db);
+    CHECK_EQ(rx.gain_step(), step);
+}
+
 TEST(close_stops_the_stream_the_clock_and_the_converter) {
     fake::Backend usb;
     fake::Device& dev = usb.add(fake::Spec{});

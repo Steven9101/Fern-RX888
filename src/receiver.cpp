@@ -375,7 +375,8 @@ std::optional<Failure> Receiver::apply(const LiveChange& change) {
     if (!device_)
         return Failure{ErrorCode::internal, "the RX-888 is not open"};
     if (change.gain) {
-        effective_.gain = *change.gain;
+        // The mode and step are taken only once the board has the gain: a
+        // refused change to manual must leave the control running.
         if (change.gain->automatic()) {
             // The control starts from the step nearest to the gain in use.
             size_t nearest = 0;
@@ -383,12 +384,13 @@ std::optional<Failure> Receiver::apply(const LiveChange& change) {
                 if (std::fabs(rx888::vga_db(gain_bytes_[i]) - effective_.gain_db) <
                     std::fabs(rx888::vga_db(gain_bytes_[nearest]) - effective_.gain_db))
                     nearest = i;
-            gain_step_ = nearest;
-            if (auto f = set_vga(gain_bytes_[gain_step_]))
+            if (auto f = set_vga(gain_bytes_[nearest]))
                 return f;
+            gain_step_ = nearest;
         } else if (auto f = set_vga(rx888::vga_byte(change.gain->db))) {
             return f;
         }
+        effective_.gain = *change.gain;
     }
     if (change.attenuation) {
         const uint16_t att = rx888::attenuator_code(*change.attenuation);
