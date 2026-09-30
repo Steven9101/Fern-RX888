@@ -9,8 +9,12 @@ The module loads it into the RX-888's FX3 controller, a separate processor;
 the module's own code does not link it. Its application code is under the MIT
 licence below. It is built with the Cypress (now Infineon) EZ-USB FX3 SDK,
 whose libraries and the ThreadX kernel inside them are under the Cypress
-Software License Agreement, also below, which allows the object code to be
-distributed for use with the Cypress device it was built for. This release of
+Software License Agreement, also below. Its section 1.3 grants a licence to
+"reproduce, sublicense and distribute the Firmware [...] in object code form
+only, with the applicable Licensee Product", a product that incorporates a
+Cypress integrated circuit (section 1.1). This module carries the image apart
+from any board; an operator who wants no copy of it here can leave it out and
+name their own with `module.firmware`. This release of
 the firmware leaves out the GPL-licensed R82xx tuner driver of earlier SDDC
 firmware, which could not be combined with the SDK's licence.
 
