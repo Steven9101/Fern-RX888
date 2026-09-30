@@ -274,18 +274,27 @@ Enumeration LibusbBackend::enumerate() {
         UsbDevice d;
         d.port = port_of(list[i]);
         d.bootloader = bootloader;
-        if (!bootloader) {
-            libusb_device_handle* h = nullptr;
-            const int r = libusb_open(list[i], &h);
-            if (r == 0) {
+        // Opened as startup would open it, so that usable means usable: a
+        // bootloader this user may not open, or a running board whose
+        // interface another program has claimed, is listed with the reason.
+        // Neither the bootloader nor the board is reset or sent anything.
+        libusb_device_handle* h = nullptr;
+        const int r = libusb_open(list[i], &h);
+        if (r == 0) {
+            if (!bootloader) {
                 d.serial = string_descriptor(h, desc.iSerialNumber);
                 for (char& c : d.serial)
                     c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
                 d.product = string_descriptor(h, desc.iProduct);
-                libusb_close(h);
-            } else {
-                d.error = r;
+                const int claimed = libusb_claim_interface(h, 0);
+                if (claimed == 0)
+                    libusb_release_interface(h, 0);
+                else
+                    d.error = claimed;
             }
+            libusb_close(h);
+        } else {
+            d.error = r;
         }
         e.devices.push_back(std::move(d));
     }
