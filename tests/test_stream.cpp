@@ -155,6 +155,35 @@ private:
     std::atomic<bool> cancelled_{false};
 };
 
+// Hands the stream the given bytes in completions of the given lengths.
+class Completions : public fern::Fx3 {
+public:
+    Completions(std::vector<uint8_t> bytes, std::vector<uint32_t> lengths)
+        : bytes_(std::move(bytes)), lengths_(std::move(lengths)) {}
+    int control_out(uint8_t, uint16_t, uint16_t, const uint8_t*, uint16_t, unsigned) override { return 0; }
+    int control_in(uint8_t, uint16_t, uint16_t, uint8_t*, uint16_t, unsigned) override { return 0; }
+    int stream(fern::SampleCallback cb, void* ctx, uint32_t, uint32_t) override {
+        size_t at = 0;
+        for (uint32_t len : lengths_) {
+            // A fresh, aligned buffer each time, as libusb's transfers are.
+            std::vector<uint16_t> transfer((len + 1) / 2);
+            auto* buf = reinterpret_cast<uint8_t*>(transfer.data());
+            std::memcpy(buf, bytes_.data() + at, len);
+            at += len;
+            cb(buf, len, ctx);
+        }
+        while (!cancelled_.load())
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        return 0;
+    }
+    void cancel_stream() override { cancelled_.store(true); }
+
+private:
+    std::vector<uint8_t> bytes_;
+    std::vector<uint32_t> lengths_;
+    std::atomic<bool> cancelled_{false};
+};
+
 std::vector<int16_t> read_samples(int fd, size_t count) {
     std::vector<int16_t> out(count);
     size_t got = 0;
@@ -195,4 +224,32 @@ TEST(stream_counts_clipping_and_peak_and_unscrambles_when_asked) {
         ::close(fds[0]);
         ::close(fds[1]);
     }
+}
+
+// Transfers end on sample boundaries, but should one not, the byte left
+// over belongs to the next completion's first sample, and unscrambling must
+// see whole samples.
+TEST(stream_keeps_samples_whole_across_odd_completions) {
+    const std::vector<int16_t> plain = {1, 2, 3, -4, 5, 32767};
+    std::vector<uint8_t> wire(plain.size() * 2);
+    for (size_t i = 0; i < plain.size(); ++i) {
+        uint16_t v = static_cast<uint16_t>(plain[i]);
+        if (v & 1)
+            v ^= 0xFFFE;
+        wire[2 * i] = static_cast<uint8_t>(v);
+        wire[2 * i + 1] = static_cast<uint8_t>(v >> 8);
+    }
+    Completions dev(wire, {3, 3, 1, 5});
+    int fds[2];
+    REQUIRE(::pipe(fds) == 0);
+    fern::Stream stream(dev, fds[1], -1, 1 << 16, 1, 16, true);
+    REQUIRE(stream.start());
+    const auto got = read_samples(fds[0], plain.size());
+    CHECK(got == plain);
+    CHECK_EQ(stream.samples_clipped(), uint64_t{1});
+    stream.request_stop();
+    CHECK(stream.wait(std::chrono::steady_clock::now() + std::chrono::seconds(2)));
+    CHECK_EQ(stream.samples_delivered(), uint64_t{plain.size()});
+    ::close(fds[0]);
+    ::close(fds[1]);
 }

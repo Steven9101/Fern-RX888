@@ -84,6 +84,8 @@ public:
 
 private:
     static void on_samples(uint8_t* buf, uint32_t len, void* ctx);
+    // Whole samples only: len is even.
+    void take(uint8_t* buf, uint32_t len);
     void reader_main();
     void writer_main();
     void notify(int fd);
@@ -96,6 +98,9 @@ private:
     const bool derandomize_;
     RingBuffer ring_;
     int data_event_ = -1;
+    // The odd byte a completion ended with, for the next one; USB thread only.
+    bool held_ = false;
+    uint8_t held_byte_ = 0;
 
     std::thread reader_;
     std::thread writer_;

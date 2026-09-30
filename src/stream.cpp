@@ -149,11 +149,30 @@ void Stream::on_samples(uint8_t* buf, uint32_t len, void* ctx) {
     Stream* s = static_cast<Stream*>(ctx);
     s->bytes_received_.fetch_add(len, std::memory_order_relaxed);
     s->last_data_ns_.store(now_ns(), std::memory_order_relaxed);
+    // Transfers end on sample boundaries. Should one not, its last byte is
+    // held for the next one, so that every later sample stays whole for
+    // unscrambling and ring drops, which take even lengths only.
+    if (s->held_ && len > 0) {
+        alignas(int16_t) uint8_t pair[2] = {s->held_byte_, buf[0]};
+        s->held_ = false;
+        s->take(pair, 2);
+        // Rare: shift the rest back onto the buffer's aligned start.
+        std::memmove(buf, buf + 1, --len);
+    }
+    if (len % 2) {
+        s->held_byte_ = buf[--len];
+        s->held_ = true;
+    }
+    if (len > 0)
+        s->take(buf, len);
+}
+
+void Stream::take(uint8_t* buf, uint32_t len) {
     // The transfer buffer is libusb's and 2-byte aligned; its samples are
     // little-endian, as is every host this module is built for.
     int16_t* samples = reinterpret_cast<int16_t*>(buf);
     const uint32_t count = len / 2;
-    if (s->derandomize_)
+    if (derandomize_)
         rx888::derandomize(samples, count);
     // How hard the converter is driven, for the gain control and FernSDR.
     // Branch-free, so that it keeps up with 130 Msps in this thread.
@@ -165,17 +184,17 @@ void Stream::on_samples(uint8_t* buf, uint32_t len, void* ctx) {
         peak = m > peak ? m : peak;
         clipped += static_cast<uint64_t>((v >= 32767) | (v <= -32768));
     }
-    s->samples_clipped_.fetch_add(clipped, std::memory_order_relaxed);
-    unsigned previous = s->peak_.load(std::memory_order_relaxed);
-    while (peak > previous && !s->peak_.compare_exchange_weak(previous, peak, std::memory_order_relaxed)) {
+    samples_clipped_.fetch_add(clipped, std::memory_order_relaxed);
+    unsigned previous = peak_.load(std::memory_order_relaxed);
+    while (peak > previous && !peak_.compare_exchange_weak(previous, peak, std::memory_order_relaxed)) {
     }
-    if (s->stop_requested_.load(std::memory_order_relaxed))
+    if (stop_requested_.load(std::memory_order_relaxed))
         return;
-    if (!s->ring_.push(buf, len)) {
-        s->bytes_dropped_.fetch_add(len, std::memory_order_relaxed);
+    if (!ring_.push(buf, len)) {
+        bytes_dropped_.fetch_add(len, std::memory_order_relaxed);
         return;
     }
-    s->notify(s->data_event_);
+    notify(data_event_);
 }
 
 void Stream::reader_main() {
