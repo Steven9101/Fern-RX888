@@ -79,6 +79,10 @@ check "and says why" grep -q "fd 3 is not open" "$tmp/stderr"
 check "--notices exits 0" test $? -eq 0
 check "--notices names the firmware and its licences" sh -c 'grep -q "ringof/rx888-firmware 0.1.0" "$1" &&
     grep -q "MIT License" "$1" && grep -q "Cypress" "$1"' - "$tmp/notices"
+check "--notices carries libusb's copyright holders and licence" sh -c 'grep -q "libusb 1.0.30" "$1" &&
+    grep -q "Johannes Erdfelt" "$1" && grep -q "GNU LESSER GENERAL PUBLIC LICENSE" "$1"' - "$tmp/notices"
+check "--notices carries the module's own licence" grep -q "GNU GENERAL PUBLIC LICENSE" "$tmp/notices"
+check "--help points to --notices for libusb" sh -c '"$1" --help | grep -q "notices.*libusb"' - "$bin"
 
 # No RX-888 here: hello, then a fatal no-device error, exit 3, no samples.
 echo '{"type":"open","sample_rate":64800000,"center":0,"signal":"real","settings":{"gain":"auto"}}' | module

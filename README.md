@@ -101,7 +101,8 @@ unmodified, and loads it on every start, also into a board that already runs
 firmware, so that it always knows what it is talking to. `fern-rx888
 --notices` prints the firmware's licences: its own code is under the MIT
 licence, and the Cypress FX3 SDK it is built with under the Cypress Software
-License Agreement; `firmware/NOTICE.md` says more.
+License Agreement; `firmware/NOTICE.md` says more. It also prints the
+licences of the module itself and of the libusb its static builds carry.
 
 The module loads firmware only into the FX3 a band selects. A board that
 already runs firmware is asked what it is first and left alone unless it

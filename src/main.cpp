@@ -23,13 +23,20 @@
 
 using namespace fern;
 
+namespace fern {
+// build/gen/notices.cpp, from LICENSE and third_party/libusb.
+extern const char module_licence[];
+extern const char libusb_notices[];
+}  // namespace fern
+
 namespace {
 
 const char usage_text[] =
     "usage: fern-rx888 --describe          print the module and its settings as JSON\n"
     "       fern-rx888 --list-devices      print the RX-888s this machine can see as JSON\n"
     "       fern-rx888 --fernsdr-module 1  run as a FernSDR input module (FernSDR starts it so)\n"
-    "       fern-rx888 --notices           print the licences of the firmware this module carries\n"
+    "       fern-rx888 --notices           print the licences of this module and of the firmware and libusb\n"
+    "                                      it carries\n"
     "       fern-rx888 --version\n";
 
 int print(const std::string& text) {
@@ -51,8 +58,16 @@ int list() {
 }
 
 int notices() {
-    return print(std::string("Firmware: firmware/SDDC_FX3.img, ringof/rx888-firmware 0.1.0, SHA-256 ") +
-                 embedded_firmware_sha256 + "\n\n" + embedded_firmware_notices);
+    return print(std::string("fern-rx888 ") + module_version() +
+                 " is under the GNU General Public License, version 2 or later, printed at the end; its source "
+                 "is at https://github.com/Steven9101/Fern-RX888.\n\n" +
+                 "Firmware: firmware/SDDC_FX3.img, ringof/rx888-firmware 0.1.0, SHA-256 " +
+                 embedded_firmware_sha256 + "\n\n" + embedded_firmware_notices +
+                 "\n\nlibusb 1.0.30, from https://github.com/libusb/libusb, is compiled into the static builds of "
+                 "this module unmodified, and is under the GNU Lesser General Public License, version 2.1 or "
+                 "later. The module's source carries the copy it is built from in third_party/libusb. Its "
+                 "authors and licence:\n\n" +
+                 libusb_notices + "\n\n" + module_licence);
 }
 
 int module() {

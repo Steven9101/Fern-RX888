@@ -46,6 +46,9 @@ SYSTEM_LIBUSB_LIBS = $(shell pkg-config --libs libusb-1.0)
 FIRMWARE := firmware/SDDC_FX3.img
 FIRMWARE_NOTICES := firmware/NOTICE.md firmware/LICENSE-MIT.txt firmware/LICENSE-CYPRESS.txt
 FIRMWARE_SRC := build/gen/firmware_blob.cpp
+# The licences of the module and of the libusb that static builds carry.
+NOTICES := LICENSE third_party/libusb/AUTHORS third_party/libusb/COPYING
+NOTICES_SRC := build/gen/notices.cpp
 
 MODULE_SRCS := src/json.cpp src/io.cpp src/log.cpp src/fx3.cpp src/rx888.cpp src/firmware.cpp src/settings.cpp \
 	src/receiver.cpp src/stream.cpp src/session.cpp src/listing.cpp src/gain_control.cpp
@@ -56,12 +59,18 @@ TEST_SRCS := tests/test_main.cpp tests/fake_fx3.cpp tests/test_json.cpp tests/te
 LIBUSB_SRCS := core.c descriptor.c hotplug.c io.c sync.c strerror.c os/linux_usbfs.c os/linux_netlink.c \
 	os/events_posix.c os/threads_posix.c
 
-cxx_objs = $(patsubst %.cpp,$(1)/obj/%.o,$(2)) $(1)/obj/gen/firmware_blob.o
+cxx_objs = $(patsubst %.cpp,$(1)/obj/%.o,$(2)) $(1)/obj/gen/firmware_blob.o $(1)/obj/gen/notices.o
 libusb_objs = $(patsubst %.c,$(1)/obj/libusb/%.o,$(LIBUSB_SRCS))
 
 $(FIRMWARE_SRC): $(FIRMWARE) $(FIRMWARE_NOTICES) tools/embed_firmware.py
 	@mkdir -p $(@D)
 	python3 tools/embed_firmware.py $(FIRMWARE) $(FIRMWARE_NOTICES) > $@.tmp
+	mv $@.tmp $@
+
+$(NOTICES_SRC): $(NOTICES) tools/embed_text.py
+	@mkdir -p $(@D)
+	python3 tools/embed_text.py module_licence LICENSE -- libusb_notices third_party/libusb/AUTHORS \
+		third_party/libusb/COPYING > $@.tmp
 	mv $@.tmp $@
 
 # Compile rules for one build directory.
@@ -75,6 +84,9 @@ $(1)/obj/tests/%.o: tests/%.cpp
 	@mkdir -p $$(@D)
 	$(3) $$(CXXFLAGS_BASE) $(4) -MMD -MP -c $$< -o $$@
 $(1)/obj/gen/firmware_blob.o: $(FIRMWARE_SRC)
+	@mkdir -p $$(@D)
+	$(3) $$(CXXFLAGS_BASE) $(4) -c $$< -o $$@
+$(1)/obj/gen/notices.o: $(NOTICES_SRC)
 	@mkdir -p $$(@D)
 	$(3) $$(CXXFLAGS_BASE) $(4) -c $$< -o $$@
 $(1)/obj/libusb/%.o: third_party/libusb/libusb/%.c

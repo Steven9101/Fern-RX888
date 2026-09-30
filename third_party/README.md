@@ -24,7 +24,8 @@ script generates; it defines what configure would define on glibc Linux with
 ## Updating
 
 Clone the new tag with `git clone --depth 1 --branch <tag> <url>`, copy the
-same files over the ones here, update the commit hash above, and run
+same files over the ones here, update the commit hash above and the
+version `--notices` names in `src/main.cpp`, and run
 `make test`, `make static` and `make static ARCH=aarch64`. The module uses
 synchronous control transfers, asynchronous bulk transfers and
 `libusb_dev_mem_alloc()` (`src/libusb_backend.cpp`).
