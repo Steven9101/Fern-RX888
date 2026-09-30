@@ -65,17 +65,21 @@ TEST(ring_drops_whole_blocks_when_full) {
 // One producer pushes numbered blocks as fast as it can while one consumer
 // reads slowly. Every byte read must belong to a block that was pushed
 // whole, in order, and pushed plus dropped must account for every block.
+// The consumer starts only once the producer has tried four times what the
+// ring holds, so some blocks are always dropped: left to the scheduler, a
+// fast machine's consumer sometimes kept up and nothing was.
 TEST(ring_keeps_order_under_concurrency) {
     fern::RingBuffer ring(1 << 12);
     constexpr uint32_t blocks = 20000;
     constexpr size_t block_size = 256;
     std::atomic<bool> done{false};
+    std::atomic<uint32_t> tried{0};
     uint32_t pushed = 0;
     uint32_t dropped = 0;
 
     std::thread producer([&] {
         std::vector<uint8_t> block(block_size);
-        for (uint32_t n = 0; n < blocks; ++n) {
+        for (uint32_t n = 0; n < blocks; ++n, tried.store(n)) {
             std::memcpy(block.data(), &n, sizeof n);
             for (size_t i = sizeof n; i < block_size; ++i)
                 block[i] = static_cast<uint8_t>(n + i);
@@ -87,6 +91,7 @@ TEST(ring_keeps_order_under_concurrency) {
         done.store(true);
     });
 
+    while (tried.load() < 4 * (1 << 12) / block_size && !done.load()) std::this_thread::yield();
     std::vector<uint8_t> partial;
     uint32_t received = 0;
     int64_t last = -1;
