@@ -473,20 +473,21 @@ bool Receiver::close_by(Clock::time_point deadline, bool stop_hardware) {
     if (stop_hardware) {
         // Stream off, clock off, converter shut down and the LED out: an idle
         // RX-888 left running gets hot.
-        const auto left = [&] {
+        // At most a second per request, and never 0: libusb takes a timeout
+        // of 0 as no limit at all. The budget is read once per request, since
+        // it can run out between two readings.
+        const auto send = [&](uint8_t request, uint8_t* data) {
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count();
-            return static_cast<unsigned>(std::max<long long>(ms, 0));
+            if (ms > 0)
+                (void)device_->control_out(request, 0, 0, data, 4, static_cast<unsigned>(std::min<long long>(ms, 1000)));
         };
         uint8_t zero[4] = {};
-        if (left() > 0)
-            (void)device_->control_out(rx888::request::stop_stream, 0, 0, zero, sizeof zero, std::min(left(), 1000u));
-        if (left() > 0)
-            (void)device_->control_out(rx888::request::start_adc, 0, 0, zero, sizeof zero, std::min(left(), 1000u));
+        send(rx888::request::stop_stream, zero);
+        send(rx888::request::start_adc, zero);
         board_.adc_on = false;
         uint8_t word[4];
         put_u32(word, rx888::gpio_word(board_));
-        if (left() > 0)
-            (void)device_->control_out(rx888::request::gpio, 0, 0, word, sizeof word, std::min(left(), 1000u));
+        send(rx888::request::gpio, word);
     }
     if (Clock::now() >= deadline && stop_hardware) {
         abandon();
