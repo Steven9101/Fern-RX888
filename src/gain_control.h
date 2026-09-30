@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
 // The module's own gain control, what gain = auto means: the highest of the
-// tuner's gain steps that keeps the RTL2832U's 8-bit converter out of
-// clipping with room to spare.
+// VGA's gain steps that keeps the LTC2208's 16-bit converter out of clipping
+// with room to spare.
 //
 // A signal that keeps clipping is lost to every listener of the band, and
 // the splatter of a converter driven past its limit lands all over the band,
@@ -19,9 +19,8 @@
 // finds its gain soon after it starts, and a minute afterwards, so that a
 // listener hears the level change rarely.
 //
-// The tuner's own AGC (gain = tuner) watches the tuner's power detectors,
-// not the converter, and leaves it clipping on strong signals it does not
-// see; that was the default before this.
+// The control only moves the VGA; module.attenuation stays where the
+// operator set it.
 #pragma once
 
 #include <array>
@@ -37,7 +36,8 @@ struct GainControlTiming {
     // Clipping is judged over windows of this length.
     std::chrono::milliseconds window{100};
     // After a change the USB transfers in flight still carry samples taken
-    // at the old gain: up to 64 of about 20 ms each.
+    // at the old gain: up to 24 of 512 KiB, 0.6 s at 10 Msps. The session
+    // lengthens this to what its transfers hold.
     std::chrono::milliseconds settle{1500};
     // Nothing but crashes clipped for this long before a step up: at first,
     // and later.
@@ -50,22 +50,22 @@ class GainControl {
 public:
     using Clock = std::chrono::steady_clock;
 
-    // steps: the tuner's gains in tenths of a dB, ascending; start: the index
+    // steps: the VGA's gains in tenths of a dB, ascending; start: the index
     // in use now. samples and clipped are the stream's counters at `now`.
     GainControl(std::vector<int> steps, size_t start, Clock::time_point now, uint64_t samples, uint64_t clipped,
                 GainControlTiming timing = GainControlTiming());
 
     // One look at the stream: its counters, which only grow, and the largest
-    // distance of I or Q from the converter's midpoint since the last look,
-    // 0 to 128. Returns the step to use from now on; reason() says why it
-    // changed.
+    // magnitude of a sample since the last look, in 256ths of the 16-bit
+    // converter's range, 0 to 128. Returns the step to use from now on;
+    // reason() says why it changed.
     size_t update(Clock::time_point now, uint64_t samples, uint64_t clipped, unsigned peak);
 
     size_t step() const { return step_; }
     double gain_db() const { return steps_[step_] / 10.0; }
     const std::string& reason() const { return reason_; }
     // True while the lowest step keeps clipping: then only less signal helps,
-    // an attenuator in front of the dongle.
+    // module.attenuation or an attenuator in front of the RX-888.
     bool clipping_at_lowest() const { return clipping_at_lowest_; }
 
     // A window clips when more than this share of its samples do.
@@ -74,8 +74,8 @@ public:
     static constexpr double clip_heavy = 1e-2;
     // How many clipping windows of the last ten bring the gain down.
     static constexpr int clip_windows = 3;
-    // A step up must leave the peaks under this distance from the midpoint:
-    // 6 dB under full scale.
+    // A step up must leave the peaks under this magnitude: 6 dB under full
+    // scale.
     static constexpr unsigned peak_limit = 64;
 
 private:
