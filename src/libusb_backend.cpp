@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "rx888.h"
+#include "usb_socket.h"
 
 namespace fern {
 
@@ -343,6 +344,10 @@ void LibusbBackend::sleep_ms(unsigned ms) { std::this_thread::sleep_for(std::chr
 std::string libusb_version_text() {
     const struct libusb_version* v = libusb_get_version();
     return "libusb " + std::to_string(v->major) + "." + std::to_string(v->minor) + "." + std::to_string(v->micro);
+}
+
+std::string LibusbBackend::socket_of(const std::string& port) {
+    return usb_socket("/sys/bus/usb/devices", port);
 }
 
 }  // namespace fern

@@ -35,6 +35,11 @@ struct Request {
 
 struct Spec {
     std::string port = "2-1";
+    // Where it shows while its firmware runs, if not at port: the FX3's
+    // bootloader is a USB 2 device, so on an xHCI controller it sits on the
+    // controller's USB 2 bus and comes back on the USB 3 bus under the same
+    // socket once the firmware connects at SuperSpeed.
+    std::string firmware_port;
     std::string serial = "0123456789ABCDEF";
     bool firmware_running = false;  // plugged in with firmware already loaded
     // What identify reports under the firmware the device was plugged in
@@ -66,8 +71,12 @@ public:
     fern::Enumeration enumerate() override;
     int open(const std::string& port, bool bootloader, std::unique_ptr<fern::Fx3>& out) override;
     void sleep_ms(unsigned) override {}
+    std::string socket_of(const std::string& port) override;
 
     int enumerate_error = 0;
+    // Bus number to host controller, as sysfs would tell; a bus not in it
+    // has no known controller.
+    std::map<std::string, std::string> controllers;
     std::vector<std::unique_ptr<Device>> devices;
 };
 
@@ -96,6 +105,10 @@ public:
     std::atomic<int> open_handles{0};
 
     std::vector<Request> taken();  // a copy of requests under the lock
+    // Where the device is listed now.
+    const std::string& port() const {
+        return firmware_running && !spec.firmware_port.empty() ? spec.firmware_port : spec.port;
+    }
     uint32_t loaded_entry = 0;     // where the last jump went
 };
 

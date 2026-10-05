@@ -123,8 +123,10 @@ std::optional<Failure> Receiver::select(const DeviceSelector& selector, UsbDevic
         chosen = e.devices[selector.index];
         return std::nullopt;
     case DeviceSelector::Kind::port:
+        // The port written down may be the socket's other bus: the one the
+        // RX-888 had in its bootloader, or the one it had while running.
         for (const UsbDevice& d : e.devices)
-            if (d.port == selector.port) {
+            if (d.port == selector.port || backend_.socket_of(d.port) == backend_.socket_of(selector.port)) {
                 chosen = d;
                 return std::nullopt;
             }
@@ -163,25 +165,30 @@ std::optional<Failure> Receiver::reopen(const std::string& port, bool bootloader
     // module's own libusb learns of it from the kernel before udev has given
     // the receiver's user access, so for a while it is listed but cannot be
     // opened: that is waited out like its absence, until the deadline.
+    // It may come back on the other bus of the same socket, when loading
+    // the firmware or resetting changed its speed (Backend::socket_of).
+    const std::string socket = backend_.socket_of(port);
     const Clock::time_point deadline = Clock::now() + reenumeration_timeout_;
     int last_error = 0;
+    std::string seen = port;
     for (;;) {
         const Enumeration e = backend_.enumerate();
         for (const UsbDevice& d : e.devices) {
-            if (d.port != port || d.bootloader != bootloader)
+            if (d.bootloader != bootloader || (d.port != port && backend_.socket_of(d.port) != socket))
                 continue;
+            seen = d.port;
             if (d.error != 0) {
                 last_error = d.error;
                 break;
             }
-            const int r = backend_.open(port, bootloader, out);
+            const int r = backend_.open(d.port, bootloader, out);
             if (r == 0) {
                 found = d;
                 return std::nullopt;
             }
             if (r != usb_error::access && r != usb_error::not_found && r != usb_error::no_device)
                 return usb_failure(r, std::string("opening the ") + (bootloader ? "FX3 bootloader" : "RX-888") +
-                                          " at USB port " + port + " failed");
+                                          " at USB port " + d.port + " failed");
             last_error = r;
             break;
         }
@@ -191,11 +198,12 @@ std::optional<Failure> Receiver::reopen(const std::string& port, bool bootloader
     }
     if (last_error == usb_error::access)
         return usb_failure(last_error, std::string("opening the ") + (bootloader ? "FX3 bootloader" : "RX-888") +
-                                           " at USB port " + port + " failed");
+                                           " at USB port " + seen + " failed");
+    const long long seconds = (reenumeration_timeout_.count() + 999) / 1000;
     return Failure{ErrorCode::usb, std::string("the RX-888 at USB port ") + port + " did not come back " +
                                        (bootloader ? "to its bootloader" : "with its firmware running") + " within " +
-                                       std::to_string((reenumeration_timeout_.count() + 999) / 1000) +
-                                       " seconds. Unplug it and plug it in again; if this repeats, try another USB 3 "
+                                       std::to_string(seconds) + (seconds == 1 ? " second" : " seconds") +
+                                       ". Unplug it and plug it in again; if this repeats, try another USB 3 "
                                        "port or cable"};
 }
 

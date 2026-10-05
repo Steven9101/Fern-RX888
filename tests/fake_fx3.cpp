@@ -200,7 +200,7 @@ fern::Enumeration Backend::enumerate() {
             continue;
         }
         fern::UsbDevice u;
-        u.port = d->spec.port;
+        u.port = d->port();
         u.bootloader = !d->firmware_running;
         if (!u.bootloader) {
             u.serial = d->spec.serial;
@@ -226,7 +226,7 @@ fern::Enumeration Backend::enumerate() {
 int Backend::open(const std::string& port, bool bootloader, std::unique_ptr<fern::Fx3>& out) {
     for (auto& d : devices) {
         std::lock_guard<std::mutex> lock(d->mutex);
-        if (d->spec.port != port || d->unplugged || d->gone > 0 || d->firmware_running == bootloader)
+        if (d->port() != port || d->unplugged || d->gone > 0 || d->firmware_running == bootloader)
             continue;
         if (d->denied > 0) {
             --d->denied;
@@ -238,6 +238,14 @@ int Backend::open(const std::string& port, bool bootloader, std::unique_ptr<fern
         return 0;
     }
     return fern::usb_error::not_found;
+}
+
+std::string Backend::socket_of(const std::string& port) {
+    const size_t dash = port.find('-');
+    if (dash == std::string::npos)
+        return port;
+    const auto controller = controllers.find(port.substr(0, dash));
+    return controller == controllers.end() ? port : controller->second + ":" + port.substr(dash + 1);
 }
 
 }  // namespace fake

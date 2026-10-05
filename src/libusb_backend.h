@@ -21,6 +21,7 @@ public:
     Enumeration enumerate() override;
     int open(const std::string& port, bool bootloader, std::unique_ptr<Fx3>& out) override;
     void sleep_ms(unsigned ms) override;
+    std::string socket_of(const std::string& port) override;
 
 private:
     libusb_context* context_ = nullptr;

@@ -51,11 +51,11 @@ NOTICES := LICENSE third_party/libusb/AUTHORS third_party/libusb/COPYING
 NOTICES_SRC := build/gen/notices.cpp
 
 MODULE_SRCS := src/json.cpp src/io.cpp src/log.cpp src/fx3.cpp src/rx888.cpp src/firmware.cpp src/settings.cpp \
-	src/receiver.cpp src/stream.cpp src/session.cpp src/listing.cpp src/gain_control.cpp
+	src/receiver.cpp src/stream.cpp src/session.cpp src/listing.cpp src/gain_control.cpp src/usb_socket.cpp
 PROGRAM_SRCS := src/main.cpp src/libusb_backend.cpp
 TEST_SRCS := tests/test_main.cpp tests/fake_fx3.cpp tests/test_json.cpp tests/test_rx888.cpp tests/test_firmware.cpp \
 	tests/test_settings.cpp tests/test_receiver.cpp tests/test_stream.cpp tests/test_session.cpp \
-	tests/test_listing.cpp tests/test_gain_control.cpp
+	tests/test_listing.cpp tests/test_gain_control.cpp tests/test_usb_socket.cpp
 LIBUSB_SRCS := core.c descriptor.c hotplug.c io.c sync.c strerror.c os/linux_usbfs.c os/linux_netlink.c \
 	os/events_posix.c os/threads_posix.c
 

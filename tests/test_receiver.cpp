@@ -102,6 +102,69 @@ TEST(open_resets_a_device_that_already_runs_firmware_and_loads_its_own) {
     CHECK(dev.streaming);
 }
 
+// On an xHCI controller every USB 3 socket is two ports, one on the USB 2
+// bus and one on the USB 3 bus. The bootloader is a USB 2 device and the
+// firmware connects at SuperSpeed, so the RX-888 leaves from 1-4 and comes
+// back at 2-4, and the other way round after a reset.
+TEST(the_rx888_is_found_again_on_the_other_bus_of_its_socket) {
+    for (const bool running : {false, true}) {
+        fake::Backend usb;
+        usb.controllers = {{"1", "pci-0000:00:14.0"}, {"2", "pci-0000:00:14.0"}};
+        fake::Spec spec;
+        spec.port = "1-4";
+        spec.firmware_port = "2-4";
+        spec.firmware_running = running;
+        fake::Device& dev = usb.add(spec);
+        fern::Receiver rx(usb);
+        rx.set_reenumeration_timeout(std::chrono::milliseconds(200));
+        const auto failure = rx.open(request());
+        if (failure)
+            std::fprintf(stderr, "%s\n", failure->message.c_str());
+        REQUIRE(!failure);
+        CHECK(dev.streaming);
+        CHECK_EQ(rx.identity().port, std::string("2-4"));
+    }
+}
+
+TEST(port_selects_a_socket_on_either_bus) {
+    fake::Backend usb;
+    usb.controllers = {{"1", "pci-a"}, {"2", "pci-a"}, {"3", "pci-b"}, {"4", "pci-b"}};
+    fake::Spec spec;
+    spec.port = "1-4";
+    spec.firmware_port = "2-4";
+    fake::Device& dev = usb.add(spec);
+    fake::Spec other;
+    other.port = "3-4";
+    other.firmware_port = "4-4";
+    usb.add(other);
+    for (const char* written : {"1-4", "2-4"}) {
+        fern::OpenRequest r = request();
+        r.settings.device.kind = fern::DeviceSelector::Kind::port;
+        r.settings.device.port = written;
+        fern::Receiver rx(usb);
+        rx.set_reenumeration_timeout(std::chrono::milliseconds(200));
+        REQUIRE(!rx.open(r));
+        CHECK_EQ(rx.identity().port, std::string("2-4"));
+        CHECK(dev.streaming);
+    }
+}
+
+// Two controllers each with something at port 4: the device must not be
+// taken for the one on the other controller.
+TEST(a_socket_on_another_controller_is_not_the_same_socket) {
+    fake::Backend usb;
+    usb.controllers = {{"1", "pci-a"}, {"2", "pci-a"}, {"3", "pci-b"}};
+    fake::Spec spec;
+    spec.port = "1-4";
+    spec.firmware_port = "3-4";  // cannot happen on real hardware; a stranger
+    usb.add(spec);
+    fern::Receiver rx(usb);
+    rx.set_reenumeration_timeout(std::chrono::milliseconds(200));
+    const auto failure = rx.open(request());
+    REQUIRE(failure);
+    CHECK_HAS(failure->message, "did not come back with its firmware running");
+}
+
 TEST(gain_auto_starts_at_ten_decibels_on_the_step_ladder) {
     fake::Backend usb;
     usb.add(fake::Spec{});

@@ -64,8 +64,9 @@ public:
 };
 
 struct UsbDevice {
-    // Bus and port chain, such as "2-1.4": the one name that survives the
-    // re-enumeration after the firmware is loaded.
+    // Bus and port chain, such as "2-1.4". The chain stays across the
+    // re-enumeration after the firmware is loaded, the bus may not: see
+    // Backend::socket_of.
     std::string port;
     bool bootloader = false;  // no firmware yet: 04b4:00f3
     // The firmware's serial number, sixteen hex digits from the FX3's die;
@@ -95,6 +96,12 @@ public:
     virtual int open(const std::string& port, bool bootloader, std::unique_ptr<Fx3>& out) = 0;
     // For the waits around re-enumeration; the fake backend does not sleep.
     virtual void sleep_ms(unsigned ms) = 0;
+    // The physical socket behind a port. An xHCI controller lists each USB 3
+    // socket twice, as a port on its USB 2 bus and one on its USB 3 bus, and
+    // the FX3 changes bus when it changes speed: its bootloader runs at USB 2
+    // and the RX-888's firmware at USB 3. Two ports name the same socket when
+    // this gives the same text for both.
+    virtual std::string socket_of(const std::string& port) { return port; }
 };
 
 }  // namespace fern
