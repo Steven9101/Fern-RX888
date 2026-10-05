@@ -36,7 +36,7 @@ Install the package for your machine from the admin panel, which offers the
 releases of this repository, or from a shell:
 
 ```sh
-fernsdr --install-module rx888-0.1.0-linux-x86_64.fernmod fernsdr.conf
+fernsdr --install-module rx888-0.1.1-linux-x86_64.fernmod fernsdr.conf
 ```
 
 Then give a band `source = module`, a real signal and a centre of 0:
@@ -119,7 +119,7 @@ other one.
 make                 # build/fern-rx888 with the system libusb
 make test            # unit, protocol, command line and package tests
 make test-asan       # the same under AddressSanitizer and UBSan
-make package         # dist/rx888-0.1.0-linux-<arch>.fernmod, statically linked
+make package         # dist/rx888-0.1.1-linux-<arch>.fernmod, statically linked
 make package ARCH=aarch64
 ```
 

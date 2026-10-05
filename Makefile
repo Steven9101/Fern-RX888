@@ -10,7 +10,7 @@
 # ARCH is x86_64, aarch64 or armhf (ARMv7 with hardware floating point) and
 # defaults to the machine's own.
 
-VERSION := 0.1.0
+VERSION := 0.1.1
 .DEFAULT_GOAL := all
 
 HOST_ARCH := $(shell uname -m | sed -e 's/^armv7.*/armhf/' -e 's/^arm64$$/aarch64/')
